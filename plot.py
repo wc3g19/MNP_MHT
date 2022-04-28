@@ -1,70 +1,68 @@
-from audioop import avg
-from pickletools import optimize
-from re import X
-from matplotlib.cbook import file_requires_unicode
-from more_itertools import sample
-
-from sqlalchemy import true
-from sympy import sec
 from extract_data import *
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.integrate import simps
-from numba import jit
 from scipy.optimize import curve_fit
-from scipy.stats import skewnorm
-from scipy.fft import fft, fft2, fftfreq, ifft
+from scipy.fft import fft, ifft
 
 
 class plotter(data):
     def __init__(self, filename=None, filepath=None):
+        # Inherets all attributes and methods from extrax_data.py
         if filename != None:
-            super().__init__(filename=filename)    
+            super().__init__(filename=filename)
         elif filepath != None:
             super().__init__(filepath=filepath)
         else:
             raise ValueError("no data file path given")
 
-    def plot(self, trial=[0,0], show=False, **kwargs):
+    def plot(self, trial=[0, 0], show=False, **kwargs):
         '''
-        plots x, y data for given trial [mag. val., cycle no.] can give 2D list to plot multiple trials on same axis
+        plots x, y data for given trial [mag. val., cycle no.] can give 2D list to plot multiple trials on same axis. **kwargs used to pass
+        additional formatting into matplotlib.plot if requred
         '''
+        # single() and is2Dlist() handels case where attempting to plot two trials
         def single(i):
+            '''
+            Only used within plot()
+            '''
             self.get_data(trial)
             plt.plot(self.x*10**3, self.y, **kwargs)
-        
+
         def is2DList(matrix_list):
+            '''
+            Only used within plot()
+            '''
             if isinstance(matrix_list[0], list):
                 return True
             else:
-                return False        
+                return False
 
         if is2DList(trial):
             [single(i) for i in trial]
         else:
             single(trial)
-        
+
         plt.xlabel("Field H[mT]")
         plt.ylabel("Magnetisation [M]")
-        #plt.grid()
 
         if show:
             plt.show()
 
-    def get_data(self, trial=[0,0]):
+    def get_data(self, trial=[0, 0]):
         self.run_data = np.array(self.desired_data(trial))
         self.x = np.delete(self.run_data[:, 4], 0)*(1/10000)
         self.y = np.delete(self.run_data[:, 5], 0)
 
-    def area(self, trial=[0,0]):
+    def area(self, trial=[0, 0]):
         '''
-        Returns SAR of hysteresis loop given constants defined below
+        Returns SAR of hysteresis loop given constants defined below, Applies Eq.(2) from report to calc. SAR
         '''
         f = 3*10**5
         Ms = 450 * (10**(-4))
-        self.get_data(trial)  # Retrieves data for given trial
         rho = 5.2       # g/m^3 Ruta et al.
-        A = abs(simps(self.x,self.y))
+        self.get_data(trial)  # Retrieves data for given trial
+        A = abs(simps(self.x, self.y))
         SAR = A*f*Ms/rho
         return SAR
 
@@ -80,44 +78,53 @@ class plotter(data):
             i += 1
         return moving_dydx
 
-
     def gauss(self, x, H, A, x0, sigma):
-            return H + A * np.exp(-(x - x0) ** 2 / (2 * sigma ** 2))
+        '''
+        Defines gaussian function, given x and constants will return y
+        '''
+        return H + A * np.exp(-(x - x0) ** 2 / (2 * sigma ** 2))
 
     def gauss_fit(self, x, y):
+        '''
+        Calculates closest fitting gaussian function to x, y data
+        '''
         mean = sum(x * y) / sum(y)
         sigma = np.sqrt(sum(y * (x - mean) ** 2) / sum(y))
+        # scipy.curve_fit optimises arguments to best fit func. to data, initial estimates are given from vars. defined above
         popt, _ = curve_fit(self.gauss, x, y, p0=[min(y), max(y), mean, sigma])
         return popt
-    
 
     def find_nearest(self, array, value):
+        '''
+        given array of data finds closest index to a value
+        '''
         array = np.asarray(array)
         idx = (np.abs(array - value)).argmin()
         return idx
 
     def half_width(self, x, y, plot=False):
-
-
-
+        '''
+        Calculates FHWM of derivative data
+        '''
         x = np.array(x)
         y = np.array(y)
         min_y = np.min(y)
         max_y = np.max(y)
 
         half_min_max = (min_y+max_y)/2      # Finds half position of x, y data
-        split = np.where(y==max_y)[0][0]    # Finds index of max value in curve
+        # Finds index of max value in curve
+        split = np.where(y == max_y)[0][0]
         first_halfy = y[:split]
         second_halfy = y[split:]            # Splits cuve about max value
         first_halfx = x[:split]
         second_halfx = x[split:]
 
-        #print(np.shape(first_halfy))
-
-        xone = first_halfx[self.find_nearest(first_halfy, half_min_max)]  # Finds x value at the half point of first curve
-        xtwo = second_halfx[self.find_nearest(second_halfy, half_min_max)] # Finds x value at the half point of second curve
+        # Finds x value at the half point of first curve
+        xone = first_halfx[self.find_nearest(first_halfy, half_min_max)]
+        # Finds x value at the half point of second curve
+        xtwo = second_halfx[self.find_nearest(second_halfy, half_min_max)]
         if plot:
-            plt.plot(x*1000,y, color='red', zorder=10)
+            plt.plot(x*1000, y, color='red', zorder=10)
             #plt.plot(second_halfx*1000, second_halfy, color='red', zorder=10)
             #plt.plot(first_halfx*1000, first_halfy, color='red', zorder=10)
             plt.scatter(xone*1000, half_min_max, color='cyan', zorder=100)
@@ -125,9 +132,10 @@ class plotter(data):
             plt.xlabel("Field H[mT]")
             plt.ylabel("Gradient [AT/m]")
 
-        return abs(xone-xtwo)                                   # Returns width at half point
+        # Returns width at half point
+        return abs(xone-xtwo)
 
-    def derivative_width(self, trial=[0,0], avg=True, gaus=True, plot=False):
+    def derivative_width(self, trial=[0, 0], avg=True, gaus=True, plot=False):
         widths = [0, 0]
         self.get_data(trial)
 
@@ -135,13 +143,18 @@ class plotter(data):
         halfy = self.y[:int(len(self.y)/2)]
         halfx = self.x[:int(len(self.y)/2)]
 
-        dy = [i-j for j, i in zip(halfy[:-1], halfy[1:])] # Calculates y differences (magnetisation)
-        dx = [i-j for j, i in zip(halfx[:-1], halfx[1:])] # Calculates x differences (field strength)
-        dydx = [i/j for i, j in zip(dy, dx)]                # Calculates gradient of magnetisation vs. field strength
+        # Calculates y differences (magnetisation)
+        dy = [i-j for j, i in zip(halfy[:-1], halfy[1:])]
+        # Calculates x differences (field strength)
+        dx = [i-j for j, i in zip(halfx[:-1], halfx[1:])]
+        # Calculates gradient of magnetisation vs. field strength
+        dydx = [i/j for i, j in zip(dy, dx)]
 
-        interpolatex = [(i+j)/2 for j, i in zip(halfx[:-1], halfx[1:])] # Calculates x at half way points in same position as gradients are taken
+        # Datapoints are lost in process of finding derivative so x points must be estimated at derivative positions
+        # Calculates x at half way points in same position as gradients are taken
+        interpolatex = [(i+j)/2 for j, i in zip(halfx[:-1], halfx[1:])]
 
-        avg_size = 7
+        avg_size = 7        # Size of moving average window
         moving_dydx = self.moving_average(dydx, avg_size)
         slicer = int(avg_size/2)
 
@@ -151,19 +164,23 @@ class plotter(data):
         if plot:
             plt.plot(interpolatex*1000, dydx, zorder=0)
 
+        # Finds y poinnts of closest gaussian curve
         y_eval = self.gauss(
             interpolatex, *self.gauss_fit(interpolatex, dydx))
-        
+
         if avg:
+            # Adds FHWM from moving average
             half_width_avg = self.half_width(
                 interpolatex[slicer:-slicer], moving_dydx, plot=False)
-            widths[0]=half_width_avg
-        
+            widths[0] = half_width_avg
+
         if gaus:
+            # Adds FWHM from closest gaussian
             half_width_gaus = self.half_width(
                 interpolatex, y_eval, plot=False)
-            widths[1]=half_width_gaus
-        return widths
+            widths[1] = half_width_gaus
+
+        return widths       # Returns list of two FWHM results
 
     def area_vs_trial(self):
         for index, i in enumerate(self.complete_list):
@@ -177,27 +194,24 @@ class plotter(data):
             plt.scatter(x, y)
         plt.show()
 
-    def resolution(self, trial=[0,0], freq=3.0e5, plot=False):
+    def resolution(self, trial=[0, 0], freq=3.0e5, plot=False):
+        '''
+        Performs Fourier transform to data from given trial. plots if required.
+        '''
         self.get_data(trial)
         samplesize = np.linspace(0, 1/freq, len(self.y))
         firsthalfy = self.y[:int(len(self.y)/2)]
         secondhalfy = self.y[int(len(self.y)/2):]
         total = np.append(firsthalfy, secondhalfy)
 
-        #fft_freq = fftfreq(total)
-        #print(fft_freq)
-        
         sr = len(total)*freq
-
         fty = fft(total)
         fty_plot = np.abs(fty)
-        #print(fty_plot)
 
         N = len(fty)
         n = np.arange(N)
         T = N/sr
         freq = n/T
-
 
         if plot:
             plt.subplot(131)
@@ -207,7 +221,7 @@ class plotter(data):
 
             plt.subplot(132)
             plt.stem(freq, fty_plot, 'b',
-                    markerfmt=" ", basefmt="-b")
+                     markerfmt=" ", basefmt="-b")
             plt.xlabel('Freq (Hz)')
             plt.ylabel('FFT Amplitude |X(freq)|')
             plt.xlim(0, 10000000)
@@ -219,4 +233,4 @@ class plotter(data):
             plt.tight_layout()
             plt.show()
 
-        return(fty_plot[3])
+        return(fty_plot[3])     # Returns third harmonic
