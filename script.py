@@ -1,31 +1,28 @@
-from tkinter import Y
-from isort import file
-from pytest import param
-from scipy.misc import derivative
-from sympy import harmonic
-import extract_data as extract
 import plot as plt
 import os
 from matplotlib import pyplot
 from os import listdir
 from os.path import isfile, join, isdir
-import csv
 import pandas as pd
 import numpy as np
-from scipy.optimize import curve_fit as curvefit
 
 
 def get_files(root):
     '''
     Reccursivaly returns all files contained within the inputted root folder
     '''
-    files = [join(root, f) for f in listdir(root) if isfile(join(root, f))] # List of files in current search
-    dirs = [d for d in listdir(root) if isdir(join(root, d))]               # List of direcectories within search
+    files = [join(root, f) for f in listdir(root) if isfile(
+        join(root, f))]  # List of files in current search
+    # List of direcectories within search
+    dirs = [d for d in listdir(root) if isdir(join(root, d))]
     for d in dirs:
-        files_in_d = get_files(join(root, d))   # Reccursivaly calls get_files on all sub-folders
+        # Reccursivaly calls get_files on all sub-folders
+        files_in_d = get_files(join(root, d))
         for f in files_in_d:
-            files.append(join(root, f))     # Appends files list with new files in folder searched by get_files
+            # Appends files list with new files in folder searched by get_files
+            files.append(join(root, f))
     return files
+
 
 def popcwd(filepath):
     '''
@@ -35,19 +32,25 @@ def popcwd(filepath):
     filepath = filepath.replace(cwd + "\\" + file_name + '\\', '')
     return filepath
 
-def get_particle_data(trial):
-    particle_data = []
 
+def get_particle_data(trial):
+    '''
+    Returns list of key data for a specific trial
+    '''
+    particle_data = []
+    # Repeats for all files in global variable desired files
     for i in desired_files:
         i_list = []
         name = popcwd(i)
         area = float(plt.plotter(filepath=i).area(trial=trial))
         FWHM = np.array(plt.plotter(filepath=i).derivative_width(trial=trial))
-        harmonic = np.array(plt.plotter(filepath=i).resolution(trial=trial, plot=False))
-        i_list.append(name)
-        i_list.append(area)
-        i_list.append(FWHM)
-        i_list.append(float(harmonic))
+        harmonic = np.array(plt.plotter(
+            filepath=i).resolution(trial=trial, plot=False))
+        i_list.append(name)  # Appends file name
+        i_list.append(area)  # Appends area of given trial
+        i_list.append(FWHM)  # Appends FWHM of given trial
+        i_list.append(float(harmonic))  # Appends harmonic of trial
+        # Appends all prev. data to running list for each file in desired data
         particle_data.append(i_list)
 
     particle_data = np.array(particle_data, dtype=object)
@@ -255,15 +258,15 @@ all_files = get_files(os.getcwd() + "\\" + file_name)        # Runs get_files fu
 desired_files = [i for i in all_files if i.endswith("\\hystLoop_rea0.dat")]   # Only selects files from folder 0I which end in .dat
 
 
-instance = plt.plotter(filepath="C:\\Users\\Joe's Laptop\\Desktop\\Uni\\Year 3\\IP\\Code\\freq_3e+5_Ms450\\aniso_random_K2e5_Ms450\\clusters_6P\hystLoop_rea0.dat")
+#instance = plt.plotter(filepath="C:\\Users\\Joe's Laptop\\Desktop\\Uni\\Year 3\\IP\\Code\\freq_3e+5_Ms450\\aniso_random_K2e5_Ms450\\clusters_6P\hystLoop_rea0.dat")
 #print(instance.file_info())
 #instance.derivative_width(trial=[0,0], plot=True)
 #print(instance.area([0,0]))
 #print(instance.area([4,4]))
 
-instance.plot([0, 0], color="red", linestyle="--", linewidth=0.75)
-instance.plot([4,4])
-pyplot.show()
+#instance.plot([0, 0], color="red", linestyle="--", linewidth=0.75)
+#instance.plot([4,4])
+#pyplot.show()
 #instance.resolution()
 #pyplot.show()
 #instance.file_info()
@@ -287,6 +290,7 @@ bar_SAR_aniso([4,4], result="SAR")
 pyplot.savefig(
     "C:\\Users\\Joe's Laptop\\Desktop\\Uni\\Year 3\\IP\\Plots\\derivative width vs area\\SARBar.png", dpi=500, bbox_inches='tight')
 '''
+
 # *** SAR-MPI ***
 '''
 plotter = "AMF"
@@ -300,6 +304,7 @@ for i in range(5):
         pyplot.savefig("C:\\Users\\Joe's Laptop\\Desktop\\Uni\\Year 3\\IP\\Plots\\derivative width vs area\\"+str(i)+"4.png", dpi=500)
     #pyplot.close()     # Use if trying to create individual plots
 '''
+
 # *** SAR-AMF ***
 '''
 SAR_AMF()
